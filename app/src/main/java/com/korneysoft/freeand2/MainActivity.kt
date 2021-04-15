@@ -1,19 +1,23 @@
 package com.korneysoft.freeand2
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import android.widget.ListView
 import android.widget.SimpleAdapter
 import android.widget.TextView
 import android.widget.Toast
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.wolfram.alpha.WAEngine
 import com.wolfram.alpha.WAPlainText
-import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -29,13 +33,17 @@ class MainActivity : AppCompatActivity() {
 
     lateinit var reserchesAdaptes: SimpleAdapter
     lateinit var textToSpeech: TextToSpeech
+    lateinit var stopButton: FloatingActionButton
+    val TTS_REQUEST_CODE = 1234
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         setSupportActionBar(findViewById(R.id.toolbar))
+        initTts()
         initViews()
         initWolframEngine()
+
     }
 
     fun initTts() {
@@ -50,11 +58,11 @@ class MainActivity : AppCompatActivity() {
         textToSpeech.language = Locale.US
         textToSpeech.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) {
-                //TODO("Not yet implemented")
+                stopButton.post { stopButton.visibility = View.VISIBLE }
             }
 
             override fun onDone(utteranceId: String?) {
-                //TODO("Not yet implemented")
+                stopButton.post { stopButton.visibility = View.GONE }
             }
 
             override fun onError(utteranceId: String?) {
@@ -76,6 +84,18 @@ class MainActivity : AppCompatActivity() {
         )
         val searchesList = findViewById<ListView>(R.id.searches_list)
         searchesList.adapter = reserchesAdaptes
+        searchesList.setOnItemClickListener { parent, view, position, id ->
+            val request = searches[position]["Resquest"]
+            val response = searches[position]["Response"]
+            textToSpeech.speak(response, TextToSpeech.QUEUE_FLUSH, null, request)
+            stopButton.visibility = View.VISIBLE
+        }
+
+        stopButton = findViewById(R.id.stop_button)
+        stopButton.setOnClickListener {
+            textToSpeech.stop()
+            stopButton.visibility = View.GONE
+        }
     }
 
     fun initWolframEngine() {
@@ -155,10 +175,35 @@ class MainActivity : AppCompatActivity() {
             }
             R.id.action_voice -> {
                 Log.d("MainActivity", "action_voice")
+
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                intent.putExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                )
+                intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "Say something, please ")
+                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.US)
+                try {
+                    startActivityForResult(intent, TTS_REQUEST_CODE)
+                } catch (e: ActivityNotFoundException) {
+                    Toast.makeText(this, "Извини чувак,работать не буде!", Toast.LENGTH_SHORT)
+                        .show()
+                }
+
                 return true
             }
-
         }
         return super.onOptionsItemSelected(item)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == TTS_REQUEST_CODE && resultCode == RESULT_OK) {
+            data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0)?.let { question ->
+                requestInput.text = question
+                askWolfram(question)
+
+            }
+        }
     }
 }
