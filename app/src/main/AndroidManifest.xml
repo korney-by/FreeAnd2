@@ -2,8 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.korneysoft.freeand2">
 
-    <uses-permission android:name="android.permission.INTERNET"/>
-
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:allowBackup="true"
@@ -11,13 +10,18 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_my_launcher_round"
         android:supportsRtl="true"
-        android:usesCleartextTraffic="true"
-        android:theme="@style/Theme.FreeAnd2">
-        <uses-library android:name="org.apache.http.legacy" android:required="false"/>
+        android:theme="@style/Theme.FreeAnd2"
+        android:usesCleartextTraffic="true">
+        <activity android:name=".DetailsActivity"></activity>
+
+        <uses-library
+            android:name="org.apache.http.legacy"
+            android:required="false" />
 
         <activity android:name=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>

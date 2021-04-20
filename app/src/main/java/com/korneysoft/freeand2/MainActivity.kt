@@ -1,6 +1,7 @@
 package com.korneysoft.freeand2
 
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
@@ -11,6 +12,8 @@ import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.view.inputmethod.InputMethod
+import android.view.inputmethod.InputMethodManager
 import android.widget.ListView
 import android.widget.SimpleAdapter
 import android.widget.TextView
@@ -18,6 +21,8 @@ import android.widget.Toast
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.wolfram.alpha.WAEngine
 import com.wolfram.alpha.WAPlainText
+import com.wolfram.alpha.WAQuery
+import com.wolfram.alpha.WAQueryResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -85,10 +90,15 @@ class MainActivity : AppCompatActivity() {
         val searchesList = findViewById<ListView>(R.id.searches_list)
         searchesList.adapter = reserchesAdaptes
         searchesList.setOnItemClickListener { parent, view, position, id ->
-            val request = searches[position]["Resquest"]
+            val request = searches[position]["Request"]
             val response = searches[position]["Response"]
-            textToSpeech.speak(response, TextToSpeech.QUEUE_FLUSH, null, request)
+            //textToSpeech.speak(response, TextToSpeech.QUEUE_FLUSH, null, request)
             stopButton.visibility = View.VISIBLE
+
+            val intent = Intent(this, DetailsActivity::class.java)
+            intent.putExtra("Request", request)
+            intent.putExtra("Response", response)
+            startActivity(intent)
         }
 
         stopButton = findViewById(R.id.stop_button)
@@ -108,6 +118,15 @@ class MainActivity : AppCompatActivity() {
         waEngine.addFormat("plaintext")
     }
 
+    fun performQuery(query: WAQuery): WAQueryResult? = try {
+        waEngine.performQuery(query)
+    } catch (t: Throwable) {
+        t.printStackTrace()
+        Toast.makeText(this, "Can't do it.", Toast.LENGTH_SHORT).show()
+        null
+
+    }
+
     fun askWolfram(request: String) {
         Toast.makeText(this, "Let me think...", Toast.LENGTH_SHORT).show()
 
@@ -115,36 +134,39 @@ class MainActivity : AppCompatActivity() {
             // Асинхронно на второстепенном потоке
             val query = waEngine.createQuery()
             query.input = request
-            val queryResult = waEngine.performQuery(query)
-            val response = if (queryResult.isError) {
-                queryResult.errorMessage
-            } else if (!queryResult.isSuccess) {
-                "Sorry, I don't understand, can yourephrase?"
-            } else {
-                val str = StringBuilder()
-                for (pod in queryResult.pods) {
-                    if (!pod.isError) {
-                        for (subpod in pod.subpods) {
-                            for (element in subpod.contents) {
-                                if (element is WAPlainText) {
-                                    str.append(element.text)
+
+            waEngine.performQuery(query)?.let { queryResult ->
+
+
+                val response = if (queryResult.isError) {
+                    queryResult.errorMessage
+                } else if (!queryResult.isSuccess) {
+                    "Sorry, I don't understand, can yourephrase?"
+                } else {
+                    val str = StringBuilder()
+                    for (pod in queryResult.pods) {
+                        if (!pod.isError) {
+                            for (subpod in pod.subpods) {
+                                for (element in subpod.contents) {
+                                    if (element is WAPlainText) {
+                                        str.append(element.text)
+                                    }
                                 }
                             }
                         }
                     }
+                    str.toString()
                 }
-                str.toString()
-            }
 
-            withContext(Dispatchers.Main) {
-                // Выполниться на главном потоке
+                withContext(Dispatchers.Main) {
+                    // Выполниться на главном потоке
 
-                searches.add(0, HashMap<String, String>().apply {
-                    put("Request", request)
-                    put("Response", response)
-                })
-                reserchesAdaptes.notifyDataSetChanged()
-                textToSpeech.speak(response, TextToSpeech.QUEUE_FLUSH, null, request)
+                    searches.add(0, HashMap<String, String>().apply {
+                        put("Request", request)
+                        put("Response", response)
+                    })
+                    reserchesAdaptes.notifyDataSetChanged()
+                    textToSpeech.speak(response, TextToSpeech.QUEUE_FLUSH, null, request)
 
 //                android.widget.Toast.makeText(
 //                    applicationContext,
@@ -152,8 +174,8 @@ class MainActivity : AppCompatActivity() {
 //                    android.widget.Toast.LENGTH_SHORT
 //                ).show()
 
+                }
             }
-
         }
     }
 
@@ -168,6 +190,7 @@ class MainActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.action_search -> {
+                hideKeyboard()
                 Log.d("MainActivity", "action_search")
                 val request = requestInput.text.toString()
                 askWolfram(request)
@@ -204,6 +227,13 @@ class MainActivity : AppCompatActivity() {
                 askWolfram(question)
 
             }
+        }
+    }
+
+    fun hideKeyboard() {
+        currentFocus?.let { view ->
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(view.windowToken, 0)
         }
     }
 }
